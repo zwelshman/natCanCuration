@@ -1,0 +1,23 @@
+--Testicular tumour cohort
+
+select t.tumourid
+, diagnosisyear
+, nvl(morph_icd10_o2,'8000') as morph_icd10_o2
+, case when (t.site_icd10r4_o2_from2013 = 'D292' or e.stage_pi_2206 = 'Y') then nvl(e.stage_best_2206,'X') else 'X' end as stage_best
+, age
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+-- C-code for testicular or D-code for testicular
+-- (D-codes included after discussion with Brian Rous)
+where (site_icd10r4_o2_from2013 like 'C62%'
+or site_icd10r4_o2_from2013 = 'D292')
+-- standard filters from CASSOP#1
+and statusofregistration like 'F'-- finalised cases only
+and ctry_code like 'E' -- English cases only
+and dedup_flag=1 -- Excluding duplicates
+and age between 0 and 200 -- Sensible age
+and sex = 1 -- Sex is 'correct' for this site
+-- year filter
+and diagnosisyear between 2013 and 2020
+
+;

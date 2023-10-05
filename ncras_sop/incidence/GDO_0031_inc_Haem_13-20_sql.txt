@@ -1,0 +1,70 @@
+--Haem tumour cohort
+
+select att.tumourid
+, att.diagnosisyear
+, att.age
+, haem.split_1
+, haem.split_2
+, haem.split_3
+, haem.split_4
+, case when att.sex = 1 then 'Male' else 'Female' end as gender
+--- Create stage and stage detail variables
+, case 
+    when trim(stage_best_system)='AnnArbor' and substr(stage_best,1,1) in ('1','2','3','4') then 'Stage '||substr(stage_best,1,1)
+    else 'Stage unknown'
+    end as STAGE_AnnArbor_1234X
+, case 
+    when trim(stage_best_system)='AnnArbor' and substr(stage_best,1,1) in ('1','2') then 'Stage 1-2'
+    when trim(stage_best_system)='AnnArbor' and substr(stage_best,1,1) in ('3','4') then 'Stage 3-4'
+    else 'Stage unknown'
+    end as STAGE_AnnArbor_SPLIT2
+, case 
+    when trim(stage_best_system)='ISS' and substr(stage_best,1,1) in ('1','2','3') then 'Stage '||substr(stage_best,1,1)
+    else 'Stage unknown'
+    end as STAGE_ISS_123X
+, case 
+    when trim(stage_best_system)='Binet' and substr(stage_best,1,1) in ('A','B','C') then 'Stage '||substr(stage_best,1,1)
+    else 'Stage unknown'
+    end as STAGE_Binet_ABCX
+, case 
+    when att.diagnosisyear > 2013 then d1.imd19_quintile_lsoas
+    else d2.imd15_quintile_lsoas
+end as deprivation
+,
+case
+    when haem.split_2 = 'Mature T-cell and NK-cell neoplasms' and att.site_icdo3rev2011 in (select site_icd10_o2 from gdo.site_skin) then 'Cutaneous T-cell lymphoma'
+    when haem.split_2 = 'Mature T-cell and NK-cell neoplasms' and (att.site_icdo3rev2011 not in (select site_icd10_o2 from gdo.site_skin) or att.site_icdo3rev2011 is null) then 'Other mature T-cell and NK-cell neoplasms'
+else null
+end as cutaneous_Tcell
+--- join the geography table to link to the deprivation table
+from av2020.av_tumour_england att
+left join av2020.at_geography_england atg
+on att.tumourid=atg.tumourid
+--- join the depravation tables
+left join imd.imd2019_equal_lsoas d1
+on atg.lsoa11_code=d1.lsoa11_code
+left join imd.imd2015_equal_lsoas d2
+on atg.lsoa11_code=d2.lsoa11_code
+inner join analysishanhualiu.gdo_morph_haem haem
+--- join the lookup on morph/behaviour in ICD-O-3 Rev 2011
+--- These fields only complete for 2013 onwards
+on haem.morph_icdo3rev2011 = att.morph_icdo3rev2011
+and haem.behaviour = att.behaviour_icdo3rev2011
+where 
+diagnosisyear between 2013 and 2020
+and ctry_code ='E' -- England residents using country code
+and statusofregistration ='F' -- Finalised cases
+and dedup_flag=1 -- Excluding duplicates, note quality issue in text above
+and age between 0 and 200 -- Sensible age
+and sex in (1,2) -- Known sex
+--- Remove transformations
+and not exists (
+select 
+ath.transformed_tumourid
+from analysispollyjeffrey.at_transformation_haem@cas2210 ath
+where 
+transformation_year between 2013 and 2020
+and att.tumourid=ath.transformed_tumourid
+)  
+;
+

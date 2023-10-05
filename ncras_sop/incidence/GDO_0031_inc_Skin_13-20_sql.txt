@@ -1,0 +1,30 @@
+--Skin tumour cohort
+
+select skinid as tumourid
+, diagnosisyear
+, case
+when sex = 1 then 'Male'
+when sex = 2 then 'Female'
+end as gender
+, age
+, fiveyearageband
+, site_group_1 as site_group_1_insitu
+, site_group_1 as site_group_1_invasive
+, site_group_2
+, tumour_type_1
+, case 	when tumour_type_2 = 'MUMPs and STUMPs' then 'Melanocytic tumours of uncertain malignant potential (MUMPs) and spitzoid tumours of uncertain malignant potential (STUMPs)'
+		else tumour_type_2 end as tumour_type_2
+, case 	when tumour_type_3 = 'BCC' then 'Basal cell carcinoma (BCC)'
+		when tumour_type_3 = 'cSCC' then 'Squamous cell carcinoma (cSCC)'
+		else tumour_type_3 end as tumour_type_3	
+, tumour_type_4
+, tumour_type_5
+, stage_best
+, nhs_region
+, stage_group_1
+, case when substr(sourceid,1,1) = 'A' then substr(sourceid,5) else null end as gdo_tumourid
+from analysisbirgittavanbodegraven.at_tumour_skin
+-- YEAR FILTER - GDO years
+where diagnosisyear between 2013 and 2020
+
+;

@@ -1,0 +1,38 @@
+-- Liver cancer cohort for GDO
+
+select t.tumourid
+, t.diagnosisyear
+, case when substr(t.site_icd10r4_o2_from2013,1,1) = 'C' then 'Malignant liver and biliary' else 'Non-malignant liver and biliary' end as tumour_type
+--- filter for 'stageable and staged' -- note that D-codes aren't stageable, but they aren't split by stage so this is OK for GDO purposes
+, case when e.stage_pi_2206 = 'Y' then nvl(e.stage_best_2206,'X') when e.stage_pi_2206 = 'N' then 'X' else 'STAGE_PI_PROBLEM!' end as stage_best
+, sl.biliary_site
+, sl.site
+, ml.morph_liver
+, ml.morph_biliary
+, t.age 
+, case
+when t.sex = 1 then 'Male'
+when t.sex = 2 then 'Female'
+end as gender
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+left outer join analysispollyjeffrey.site_liver sl on sl.SITE_ICD10R4_O2_FROM2013 = t.SITE_ICD10R4_O2_FROM2013
+left outer join analysispollyjeffrey.morph_liver ml
+on ml.morph_icdo3rev2011 = t.morph_icdo3rev2011  and ml.diagnosisyear = t.diagnosisyear and ml.SITE_ICD10R4_O2_FROM2013 = t.SITE_ICD10R4_O2_FROM2013
+
+where (t.site_icd10r4_o2_3char_from2013 in ('C22', 'C23','C24')
+or t.site_icd10r4_o2_from2013 in ('D015', 'D376', 'D134'))
+
+and t.diagnosisyear between 2013 and 2020
+
+
+and t.statusofregistration = 'F'
+-- Only English
+and t.ctry_code = 'E'
+-- Only known sex, no sex = 9
+and t.sex in ('1','2')
+-- Not duplicates:
+and t.dedup_flag = 1
+and t.age between 0 and 200 -- Sensible age
+
+;

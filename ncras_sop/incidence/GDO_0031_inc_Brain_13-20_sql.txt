@@ -1,0 +1,34 @@
+--Brain tumour cohort
+
+select t.tumourid 
+, diagnosisyear
+, site_icd10r4_o2_from2013
+, age
+,case 
+when nhs_region_2021_name in ('East of England','Midlands') then 'Midlands and East of England'
+when nhs_region_2021_name in ('North West', 'North East and Yorkshire') then 'North of England'
+when nhs_region_2021_name in ('South West','South East') then 'South of England'
+else nhs_region_2021_name
+end as region
+, case
+when sex = 1 then 'Male'
+when sex = 2 then 'Female'
+end as gender
+from av2020.av_tumour_england t
+left join av2020.at_geography_england g on t.tumourid=g.tumourid
+where diagnosisyear in ('2013','2014','2015','2016','2017','2018', '2019', '2020')
+-- This is all brains
+and (site_icd10r4_o2_3char_from2013 in ('C70', 'C71','C72','D43','D42','D33','D32')
+OR 
+site_icd10r4_o2_from2013  IN ('C751', 'C752','C753','D443','D444','D445','D352','D353','D354') )
+-- Only finals
+and statusofregistration = 'F'
+-- Only English
+and ctry_code = 'E'
+-- Only known sex, no sex = 9
+and sex in ('1','2')
+-- Not duplicates:
+and dedup_flag = 1
+and age between 0 and 200 -- Sensible age
+
+;

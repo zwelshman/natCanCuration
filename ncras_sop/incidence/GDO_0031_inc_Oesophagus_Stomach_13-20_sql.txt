@@ -1,0 +1,34 @@
+--Oesophageal and stomach tumour cohort
+
+select t.tumourid
+, t.diagnosisyear
+--Re-code any tumours coded to C167 in site_coded to reflect this in site_icd10 (2018 code change not applied to fields in CAS yet)
+, case when (t.site_coded ='C167' and t.diagnosisyear>2017) then 'C167' else t.site_icd10r4_o2_from2013 end as site_icd10r4_o2_from2013
+, s.site
+, s.oesophageal_subsite
+, s.stomach_subsite
+, nvl(t.morph_icdo3rev2011,8000) as morph_icdo3rev2011
+--- applying stage_pi filter here. There is a tumour in the cohort with STAGE_PI null, which gets caught by else.
+, case when e.stage_pi_2206 = 'Y' then nvl(e.stage_best_2206, 'X') else 'X' end as stage_best
+, t.age
+
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+left join analysispollyjeffrey.gdo_site_oes_stomach s on case when (t.site_coded ='C167' and t.diagnosisyear>2017) then 'C167' else t.site_icd10r4_o2_from2013 end= s.site_icd10r4_o2_from2013 and nvl(t.morph_icdo3rev2011,'8000') = nvl(s.morph_icdo3rev2011,'8000') and t.diagnosisyear=s.diagnosisyear
+
+where 
+-- This is all of stomach and oeosphagus
+t.diagnosisyear in ('2013','2014','2015','2016','2017','2018','2019','2020') 
+and t.site_icd10r4_o2_3char_from2013 in ('C15', 'C16')
+--Standard NCRAS cohort filters
+-- Only finals
+and t.statusofregistration = 'F'
+-- Only English
+and t.ctry_code = 'E'
+-- Only known sex, no sex = 9
+and t.sex in ('1','2')
+-- Not duplicates:
+and t.dedup_flag = 1
+and t.age between 0 and 200
+
+;

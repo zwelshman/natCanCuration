@@ -1,0 +1,11 @@
+--Haem transformations tumour cohort
+
+select transformed_tumourid as tumourid
+, transformation_year as diagnosisyear
+, transformation_split_1
+, transformation_split_2
+from analysispollyjeffrey.at_transformation_haem@cas2210 
+where 
+transformation_year between 2013 and 2020
+and dedup_flag=1 -- Excluding duplicates
+;

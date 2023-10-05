@@ -1,0 +1,40 @@
+--Ovarian tumour cohort
+
+select 
+t.tumourid
+, t.diagnosisyear
+, case when (t.site_icd10r4_o2_from2013 = 'D391' or e.stage_pi_2206 = 'Y') then nvl(e.stage_best_2206,'X') else 'X' end as stage_best
+, t.age
+, case when t.site_icd10r4_o2_from2013 in ('C577','C578','C579') then  'Non-specific site'
+else morph_cat_3 end as morph_cat_3
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+left outer join gdo.morph_ovary_master tt
+--left outer join analysischarlieturner.ova_tum_types tt
+on substr(t.site_icd10r4_o2_from2013,1,1) = tt.site_icd10
+and nvl(t.morph_icd10_o2,8000) = tt.morph_icd10_o2
+
+where 
+    (t.site_icd10r4_o2_3char_from2013 in ('C56', 'C57') 
+    or 
+    -- for C48, restrict to women and remove sarcomas (follows CAS-SOP 4.2 and Becca Elleray's code)
+    (t.site_icd10r4_o2_3char_from2013 in ('C48') 
+    and (t.morph_icd10_o2 not in (8693, 8800, 8801, 8802, 8803, 8804, 8805, 8806, 8810, 8963, 
+    8990, 8991, 9040, 9041, 9042, 9043, 9044, 9490, 9500)
+    and (t.morph_icd10_o2 not between 8811 and 8921) 
+    and (t.morph_icd10_o2 not between 9120 and 9373) 
+    and (t.morph_icd10_o2 not between 9530 and 9582) 
+    and sex=2 --- this is duplication, but reminds people to do it for the C48 split.
+    )
+    OR
+    t.site_icd10r4_o2_from2013 in ('D391') ) )
+-- standard filters 
+and t.statusofregistration like 'F'
+and t.ctry_code like 'E'
+and t.dedup_flag=1 -- Excluding duplicates
+and t.age between 0 and 200 -- Sensible age
+and t.sex = 2 -- Sex is female for ovarian
+--  diagnosis year in initial range
+and t.diagnosisyear between 2013 and 2020
+
+;

@@ -1,0 +1,24 @@
+--Head and neck tumour cohort
+
+select t.tumourid
+, t.diagnosisyear
+, t.site_icd10r4_o2_from2013
+, case when e.stage_pi_2206 = 'Y' then nvl(e.stage_best_2206,'X') when e.stage_pi_2206 = 'N' then 'X' else 'Fish!' end as stage_best
+, t.age
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+where t.diagnosisyear in ('2013','2014','2015','2016','2017','2018','2019','2020')
+-- This is head and neck
+and t.site_icd10r4_o2_3char_from2013 in ('C00','C01', 'C02','C03','C04', 'C05', 'C06', 'C07', 'C08', 'C09', 'C10' ,'C11', 'C12', 'C13', 'C14', 'C30','C31', 'C32')
+--Standard NCRAS cohort filters
+-- Only finals
+and t.statusofregistration = 'F'
+-- Only English
+and t.ctry_code = 'E'
+-- Only known sex, no sex = 9
+and t.sex in ('1','2')
+-- Not duplicates:
+and t.dedup_flag = 1
+and t.age between 0 and 200 -- Sensible age
+
+;

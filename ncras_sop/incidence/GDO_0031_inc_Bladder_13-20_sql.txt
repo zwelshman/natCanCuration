@@ -1,0 +1,103 @@
+-- Bladder cancer cohort for GDO
+
+select
+att.tumourid
+,case when ((site_icd10r4_o2_3char_from2013 = 'C65') or (site_icd10r4_o2_from2013 = 'D411') or (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char = 'C65')) then 'Renal Pelvis and Ureter'
+     when ((site_icd10r4_o2_3char_from2013 = 'C66') or (site_icd10r4_o2_from2013 = 'D412') or (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char = 'C66')) then 'Renal Pelvis and Ureter'
+     when ((site_icd10r4_o2_3char_from2013 = 'C67') or (site_icd10r4_o2_from2013 in ('D090','D414'))) then 'Bladder'
+     when ((site_icd10r4_o2_3char_from2013 = 'C68') or (site_icd10r4_o2_from2013 in ('D413','D417','D419')) or (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char = 'C68') and coalesce(att.behaviour_icdo3rev2011,att.behaviour_icd10_o2) != 1) then 'Urethra' -- we exclude behaviour 1 for urethra only, see filters below
+     -- We put TCCs/urothelial of Kidney into Renal Pelvis group (cross-check with Kidney sql!)
+     when  ((site_icd10r4_o2_3char_from2013 = 'C64' or site_icd10r4_o2_from2013 = 'D410' or (site_icd10r4_o2_from2013 = 'D091' and SITE_ICDO3REV2011_3CHAR = 'C64')) and k_morph.cancer_type like 'Transitional cell carcinoma') then 'Renal Pelvis and Ureter'
+     else 'Fish!' 
+     end as tumour_group
+, diagnosisyear
+, case
+when sex = 1 then 'Male'
+when sex = 2 then 'Female'
+else null end as gender
+, case 
+when nhs_region_2021_name in ('East of England','Midlands') then 'Midlands and East of England'
+when nhs_region_2021_name in ('North West', 'North East and Yorkshire') then 'North of England'
+when nhs_region_2021_name in ('South West','South East') then 'South of England'
+else nhs_region_2021_name
+end as region
+, age
+, cancer_type
+,site_icd10r4_o2_3char_from2013
+,site_icd10r4_o2_from2013
+,site_icdo3rev2011_3char
+, coalesce(att.behaviour_icdo3rev2011,att.behaviour_icd10_o2,'X') as behaviour_icdo3rev2011 ---- where behaviour is missing, treat as unknown
+, nvl(att.morph_icdo3rev2011,'8000') as morph_icdo3rev2011 --- where morphology is missing, treat as 8000
+, nvl(att.grade,'GX') AS GRADE ---- where Grade is missing, treat as unknown
+---- this bit tries to summarise T-stage and grade into 'risk level' in the appropriate way
+---- DO NOT USE RIGHT NOW!
+, case when lower(att.t_best) = 'a' and att.grade = 'G1' then '1 Low'
+		when lower(att.t_best) = 'a' and att.grade = 'G2' then '2 Intermediate'
+		when lower(att.t_best) = 'a' and att.grade = 'G3' then '3 High'
+		when lower(att.t_best) = 'a' and att.grade = 'GX' then 'X Unknown'
+		when substr(att.t_best,1,1) = '1' then '3 High' 
+		else 'Fish!!' end as risk_level
+-- T-stage related fields 
+, stage.musc_inv, stage.invasiveness, stage.stage_detail
+-- n- and m-stage related field (DO NOT USE RIGHT NOW!)
+, case
+    when spread.spread = 'Localised' then 'Stage localised'
+    when spread.spread = 'Locally advanced' then 'Stage locally advanced'
+    when spread.spread = 'Metastatic' then 'Stage metastatic'
+    when spread.spread = 'Spread unknown' then 'Stage unknown'
+    else 'Check!'
+  end as spread_1
+from av2020.av_tumour_england att
+left join AV2020.at_geography_england g on att.tumourid = g.tumourid
+left join av2020.av_tumour_experimental_england attex on att.tumourid=attex.tumourid
+-- join the kidney morphology table to grab those TCCs of kidney
+-- left join ANALYSISCHARLOTTEEVERSFIELD.kidney_morph k_morph -- OLD TABLE
+left join gdo.morph_kidney k_morph
+on k_morph.morph_icdo3rev2011 = att.morph_icdo3rev2011 and k_morph.behaviour_icdo3rev2011 = att.behaviour_icdo3rev2011
+--- join the bladder stages table to get various levels of stage (there is an explanatory version on non-era if needed)
+--- LEFT JOIN ANALYSISCHARLOTTEEVERSFIELD.BLADDER_STAGES STAGE -- OLD TABLE
+left join gdo.stage_bladder stage
+on
+--- treat all missing stage as 'x' for simplicity
+--- treat all with STAGE_PI_DETAIL is unstageable ('NA','U') as missing stage 
+case when (substr(lower(nvl(attex.stage_best_2206,'x')),1,1) IN ('?','u','x','6') or attex.stage_pi_detail_2206 in ('NA','U')) then 'x' else substr(lower(attex.stage_best_2206),1,1) end = stage.stage_best
+and
+substr(upper(att.site_icd10r4_o2_from2013),1,1) = stage.site_icd10_o2_1char
+--- treat all with STAGE_PI_DETAIL is unstageable ('NA','U') as missing stage 
+and case when attex.stage_pi_detail_2206 in ('NA','U') then 'x' else substr(lower(nvl(att.T_BEST,'x')),1,1) end = stage.t_best
+--- join my 'spread' table (DO NOT USE RIGHT NOW!)
+--- left join ANALYSISCHARLOTTEEVERSFIELD.spread -- OLD TABLE
+left join gdo.stage_spread_bladder spread
+on substr(nvl(n_best,'X'),1,1) = n_best_summary and substr(nvl(m_best,'X'),1,1) = m_best_summary 
+where
+diagnosisyear between 2013 and 2020
+--- STANDARD CHECKS LIKE CASSOP # 1
+-- Only finals
+and statusofregistration = 'F'
+-- Only English
+and ctry_code = 'E'
+-- Only known sex, no sex = 9
+and sex in ('1','2')
+-- Not duplicates:
+and dedup_flag = 1
+and age between 0 and 200
+and 
+--- site filters -- collated version of the groupings above.
+(
+    (site_icd10r4_o2_3char_from2013 in ('C65','C66','C67','C68'))
+    or 
+    (site_icd10r4_o2_from2013 in ('D090','D411','D412','D413','D414','D417','D419'))
+    or
+    (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char in ('C65','C66','C68'))
+    or 
+    --- adding the TCCs of the Kidney, to go into Renal Pelvis group
+    ((site_icd10r4_o2_3char_from2013 = 'C64' or site_icd10r4_o2_from2013 = 'D410' or (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char = 'C64')) and k_morph.cancer_type like 'Transitional cell carcinoma'
+    )
+    )
+and --- exclude uncertain behaviour for urethral cancers only
+	( NOT
+	(
+	((site_icd10r4_o2_3char_from2013 = 'C68') or (site_icd10r4_o2_from2013 in ('D413','D417','D419')) or (site_icd10r4_o2_from2013 = 'D091' and site_icdo3rev2011_3char = 'C68')) AND behaviour_icd10_o2 = 1
+	)
+	)
+;

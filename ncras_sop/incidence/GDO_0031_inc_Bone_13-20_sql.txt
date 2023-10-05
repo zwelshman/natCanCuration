@@ -1,0 +1,24 @@
+-- Bone cancer cohort for GDO
+
+select tumourid
+
+, diagnosisyear
+, age
+
+from av2020.av_tumour_england
+
+where site_icd10r4_o2_3char_from2013 in ('C40','C41')
+
+and diagnosisyear between 2013 and 2020
+
+
+and statusofregistration = 'F'
+-- Only English
+and ctry_code = 'E'
+-- Only known sex, no sex = 9
+and sex in ('1','2')
+-- Not duplicates:
+and dedup_flag = 1
+and age between 0 and 200 -- Sensible age
+
+;

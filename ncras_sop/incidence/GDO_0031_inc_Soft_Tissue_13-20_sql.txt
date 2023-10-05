@@ -1,0 +1,32 @@
+-- cohort for Soft Tissue and Peripheral Nerves for GDO
+
+select tumourid
+, site_icd10r4_o2_3char_from2013
+, diagnosisyear
+, age
+from av2020.av_tumour_england
+where 
+  (  site_icd10r4_o2_3char_from2013 in ('C47','C49') OR
+        (site_icd10r4_o2_3char_from2013 = 'C48' and sex = 1) -- All male peritoneal cancers
+        OR 
+        -- all female peritoneal cancers which are 'sarcomas' and other morphologies excluded from ovary
+        -- between here and ovary we should be counting ALL tumours at C48
+        (site_icd10r4_o2_3char_from2013 = 'C48' and  ((morph_icd10_o2 in (8693, 8800, 8801, 8802, 8803, 8804, 8805, 8806, 8810, 8963, 
+                    8990, 8991, 9040, 9041, 9042, 9043, 9044, 9490, 9500))
+                        or (morph_icd10_o2 between 8811 and 8921) 
+                        or (morph_icd10_o2  between 9120 and 9373) 
+                        or (morph_icd10_o2  between 9530 and 9582) 
+                            )
+                )
+    )
+and diagnosisyear between 2013 and 2020
+and statusofregistration = 'F'
+-- Only English
+and ctry_code = 'E'
+-- Only known sex, no sex = 9
+and sex in ('1','2')
+-- Not duplicates:
+and dedup_flag = 1
+and age between 0 and 200 -- Sensible age
+
+;

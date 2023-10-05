@@ -1,0 +1,41 @@
+--Sarcoma tumour cohort
+
+select att.tumourid
+, att.diagnosisyear
+, att.site_icdo3rev2011_3char
+, att.age
+, morphological_subgroup
+, case 
+when sarcoma_group = 'Bone' then 'Bone sarcoma'
+when sarcoma_group = 'STS' then 'Soft tissue sarcoma'
+end as sarcoma_group
+, case
+-- GISTS of the OGJ get counted as oesophagus and hence other.  This code should only be used for 2018 diag onwards
+when diagnosisyear >= 2018 and site_coded = 'C167' then 'Other'
+when att.site_icdo3rev2011_3char = 'C16' then 'Stomach'
+when att.site_icdo3rev2011_3char = 'C17' then 'Small intestine'
+else 'Other' end
+as GDO_gist_site
+from av2020.av_tumour_england att
+inner join GDO.morph_sarcoma sarc
+--- join the lookup on site/morph/behaviour in ICD-O-3 Rev 2011
+--- These fields only complete for 2013 onwards
+on sarc.morph_icdo3rev2011 = att.morph_icdo3rev2011
+and sarc.site_icdo3rev2011_3char = att.site_icdo3rev2011_3char
+and sarc.behaviour_icdo3rev2011 = att.behaviour_icdo3rev2011
+where 
+diagnosisyear between 2013 and 2020
+and ctry_code ='E' -- England residents using country code
+and statusofregistration ='F' -- Finalised cases
+and dedup_flag=1 -- Excluding duplicates, note quality issue in text above
+and age between 0 and 200 -- Sensible age
+and sex in (1,2) -- Known sex
+-- Variation from CAS-SOP #1 : DO NOT EXCLUDE C44 or D codes, these are real sarcomas!
+--- SEX EXCLUSION FOR C-CODES
+and ((sex = '2' and site_icd10r4_o2_3char_from2013 not in ('C60','C61','C62','C63'))
+or (sex = '1' and site_icd10r4_o2_3char_from2013 not in ('C51','C52','C53','C54','C55','C56','C57','C58'))) -- Sex doesn’t agree with tumour site
+---- SEX EXCLUSION FOR D-CODES 
+and ((sex = '2' and ((site_icd10r4_o2_3char_from2013 not in ('D29','D40')) AND (site_icd10r4_o2_from2013 not in ('D074','D075','D076')))) -- exclude male D-code tumours for females
+or (sex = '1' and ((site_icd10r4_o2_3char_from2013 not in ('D06','D25','D26','D27','D28','D39')) AND (site_icd10r4_o2_from2013 not in ('D070','D071','D072','D073'))))) -- exclude female D-code tumours for males
+
+;

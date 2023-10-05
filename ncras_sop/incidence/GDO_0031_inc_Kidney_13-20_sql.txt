@@ -1,0 +1,28 @@
+--Kidney tumour cohort
+
+select t.tumourid
+, t.diagnosisyear
+, case when substr(site_icd10r4_o2_from2013,1,1) = 'C' then 'Malignant kidney cancer' else 'Kidney tumours of uncertain behaviour' end as tumour_type
+, nvl(mg.cancer_type,'Renal cell carcinoma NOS') as tumour_type_2
+, t.basisofdiagnosis 
+, t.age, t.sex
+--- filter for 'stageable and staged' -- note that D-codes aren't stageable, but they aren't split by stage so this is OK for GDO purposes
+, case when e.stage_pi_2206 = 'Y' then substr(nvl(e.stage_best_2206,'X'),1,1) when e.stage_pi_2206 = 'N' then 'X' else 'Fish!' end as stage_best
+from av2020.av_tumour_england t
+left join av2020.av_tumour_experimental_england e on t.tumourid=e.tumourid
+left outer join gdo.morph_kidney mg
+on mg.morph_icdo3rev2011 = nvl(t.morph_icdo3rev2011,8000)  and mg.behaviour_icdo3rev2011 = t.behaviour_icdo3rev2011
+where t.ctry_code = 'E'
+and t.statusofregistration = 'F'
+and t.dedup_flag=1
+and t.age between 0 and 200
+and t.sex in (1,2)
+and t.diagnosisyear between 2013 and 2020
+and (t.site_icd10r4_o2_3char_from2013 = 'C64'
+or t.site_icd10r4_o2_from2013 = 'D410' 
+or (t.site_icd10r4_o2_from2013 = 'D091' and t.site_icdo3rev2011_3char = 'C64')
+)
+--- this exclusion remains but is only necessary for 2013-2016 tumours, all cases for 2017 onwards will be fixed in CAS2007, and no new cases can be registered
+and nvl(mg.cancer_type,'Renal cell NOS') != 'Transitional cell carcinoma' 
+
+;

@@ -1,0 +1,20 @@
+--Eye tumour_cohort
+
+select
+att.tumourid 
+, att.site_icd10r4_o2_from2013
+, att.diagnosisyear
+, att.morph_icdo3rev2011
+, att.age
+
+from av2020.av_tumour_england att
+
+where att.site_icd10r4_o2_3char_from2013 = 'C69'
+and att.statusofregistration like 'F'
+and att.ctry_code like 'E'
+and att.dedup_flag=1 -- Excluding duplicates
+and att.age between 0 and 200 -- Sensible age
+and att.sex in (1,2) -- Known sex
+and att.diagnosisyear between 2013 and 2020
+
+; 

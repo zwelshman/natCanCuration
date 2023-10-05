@@ -1,0 +1,29 @@
+--Pancreatic tumour cohort
+
+select att.tumourid
+, att.morph_icdo3rev2011
+, diagnosisyear
+, case when e.stage_pi_2206 = 'Y' then nvl(e.stage_best_2206,'X') when e.stage_pi_2206 = 'N' then 'X' else 'STAGE_PI_PROBLEM!' end as stage_best
+, case 
+when nhs_region_2021_name in ('East of England','Midlands') then 'Midlands and East of England'
+when nhs_region_2021_name in ('North West', 'North East and Yorkshire') then 'North of England'
+when nhs_region_2021_name in ('South West','South East') then 'South of England'
+else nhs_region_2021_name
+end as region
+, case when sex = 1 then 'Male' else 'Female' end as gender
+, age
+from av2020.av_tumour_england att
+left join av2020.av_tumour_experimental_england e on att.tumourid=e.tumourid
+left join av2020.at_geography_england g 
+on att.tumourid = g.tumourid
+where site_icd10r4_o2_3char_from2013 = 'C25'
+-- standard filters
+and statusofregistration like 'F' -- finalised cases only
+and ctry_code like 'E' -- English cases only
+and dedup_flag= 1 -- Excluding duplicates
+and age between 0 and 200 -- Sensible age
+and sex in (1,2) -- Sex defined
+-- year filter
+and diagnosisyear between 2013 and 2020
+
+;
